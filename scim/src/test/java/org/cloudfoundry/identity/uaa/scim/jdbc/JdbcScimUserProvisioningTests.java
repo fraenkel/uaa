@@ -148,7 +148,36 @@ public class JdbcScimUserProvisioningTests {
         assertEquals(user.getUserName(), map.get("userName"));
         assertEquals(user.getUserType(), map.get(UaaAuthority.UAA_USER.getUserType()));
         assertNull(created.getGroups());
+        assertEquals("uaa", created.getOrigin());
     }
+
+    @Test
+    public void validateOriginAndExternalIDDuringCreateAndUpdate() {
+        String origin = "test";
+        String externalId = "testId";
+        ScimUser user = new ScimUser(null, "jo@foo.com", "Jo", "User");
+        user.setOrigin(origin);
+        user.setExternalId(externalId);
+        user.addEmail("jo@blah.com");
+        ScimUser created = db.createUser(user, "j7hyqpassX");
+        assertEquals("jo@foo.com", created.getUserName());
+        assertNotNull(created.getId());
+        assertNotSame(user.getId(), created.getId());
+        Map<String, Object> map = template.queryForMap("select * from users where id=?", created.getId());
+        assertEquals(user.getUserName(), map.get("userName"));
+        assertEquals(user.getUserType(), map.get(UaaAuthority.UAA_USER.getUserType()));
+        assertNull(created.getGroups());
+        assertEquals(origin, created.getOrigin());
+        assertEquals(externalId, created.getExternalId());
+        String origin2 = "test2";
+        String externalId2 = "testId2";
+        created.setOrigin(origin2);
+        created.setExternalId(externalId2);
+        ScimUser updated = db.update(created.getId(), created);
+        assertEquals(origin2, updated.getOrigin());
+        assertEquals(externalId2, updated.getExternalId());
+    }
+
 
     @Test
     public void canCreateUserWithoutGivenNameAndFamilyName() {

@@ -101,6 +101,10 @@ public class UaaUser {
         return familyName;
     }
 
+    public String getOrigin() { return origin; }
+
+    public String getExternalId() { return externalId; }
+
     public List<? extends GrantedAuthority> getAuthorities() {
         return authorities;
     }

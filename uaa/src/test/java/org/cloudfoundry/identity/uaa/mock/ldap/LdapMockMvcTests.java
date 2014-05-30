@@ -16,7 +16,6 @@ import org.cloudfoundry.identity.uaa.config.YamlServletProfileInitializer;
 import org.cloudfoundry.identity.uaa.test.LdapIntegrationTestConfig;
 import org.cloudfoundry.identity.uaa.test.TestClient;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
@@ -24,6 +23,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockServletContext;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.test.web.servlet.MockMvc;
@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static org.junit.Assert.assertEquals;
 import static org.springframework.http.MediaType.TEXT_HTML_VALUE;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -59,6 +60,7 @@ public class LdapMockMvcTests {
 
     MockMvc mockMvc;
     TestClient testClient;
+    JdbcTemplate jdbcTemplate;
 
     private String ldapProfile;
 
@@ -84,6 +86,7 @@ public class LdapMockMvcTests {
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).addFilter(springSecurityFilterChain)
                 .build();
         testClient = new TestClient(mockMvc);
+        jdbcTemplate = webApplicationContext.getBean(JdbcTemplate.class);
     }
 
     @After
@@ -94,7 +97,7 @@ public class LdapMockMvcTests {
 
     @Test
     public void printProfileType() {
-        Assert.assertEquals(ldapProfile, webApplicationContext.getBean("testLdapProfile"));
+        assertEquals(ldapProfile, webApplicationContext.getBean("testLdapProfile"));
     }
 
     @Test
@@ -134,7 +137,7 @@ public class LdapMockMvcTests {
             .andExpect(status().isOk())
             .andReturn();
 
-        Assert.assertEquals("{\"username\":\""+username+"\"}", result.getResponse().getContentAsString());
+        assertEquals("{\"username\":\"" + username + "\"}", result.getResponse().getContentAsString());
     }
 
     @Test
@@ -151,6 +154,48 @@ public class LdapMockMvcTests {
         mockMvc.perform(post)
             .andExpect(status().isUnauthorized());
 
+    }
+
+    @Test
+    public void validateOriginForNonLdapUser() throws Exception {
+        String username = "marissa";
+        String password = "koala";
+
+        MockHttpServletRequestBuilder post =
+            post("/authenticate")
+                .accept(MediaType.APPLICATION_JSON)
+                .param("username", username)
+                .param("password", password);
+
+        MvcResult result = mockMvc.perform(post)
+            .andExpect(status().isOk())
+            .andReturn();
+
+        assertEquals("{\"username\":\"" + username + "\"}", result.getResponse().getContentAsString());
+
+        String origin = jdbcTemplate.queryForObject("select origin from users where username='marissa'", String.class);
+        assertEquals("uaa", origin);
+    }
+
+    @Test
+    public void validateOriginForLdapUser() throws Exception {
+        String username = "marissa3";
+        String password = "ldap3";
+
+        MockHttpServletRequestBuilder post =
+            post("/authenticate")
+                .accept(MediaType.APPLICATION_JSON)
+                .param("username", username)
+                .param("password", password);
+
+        MvcResult result = mockMvc.perform(post)
+            .andExpect(status().isOk())
+            .andReturn();
+
+        assertEquals("{\"username\":\"" + username + "\"}", result.getResponse().getContentAsString());
+
+        String origin = jdbcTemplate.queryForObject("select origin from users where username='marissa3'", String.class);
+        assertEquals("ldap", origin);
     }
 
 }
